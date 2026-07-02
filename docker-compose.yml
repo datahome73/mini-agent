@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  mini-agent-telegram:
+    build: .
+    container_name: mini-agent
+    restart: unless-stopped
+    command: telegram
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - WORKSPACE_DIR=/app/data
+    volumes:
+      - ./data:/app/data
