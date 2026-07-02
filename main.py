@@ -15,6 +15,7 @@ from tools.registry import ToolRegistry
 from tools.filesystem import init_sandbox, read_file_tool, write_file_tool, search_tool
 from tools.web import web_fetch_tool, web_search_tool
 from tools.shell import shell_tool
+from tools.memory_tool import init as init_memory_tools, read_memory_tool, remember_tool
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
 from agent_core import AgentCore
@@ -43,6 +44,8 @@ def build_agent(cfg: Config) -> AgentCore:
 
     # 工具注册
     registry = ToolRegistry()
+    registry.register(read_memory_tool)
+    registry.register(remember_tool)
     registry.register(read_file_tool)
     registry.register(write_file_tool)
     registry.register(search_tool)
@@ -53,6 +56,9 @@ def build_agent(cfg: Config) -> AgentCore:
     # 记忆
     session_memory = SessionMemory(cfg.workspace_dir)
     long_term_memory = LongTermMemory(cfg.workspace_dir)
+
+    # 初始化记忆工具
+    init_memory_tools(long_term_memory)
 
     # Agent
     agent = AgentCore(

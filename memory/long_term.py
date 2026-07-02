@@ -1,6 +1,6 @@
 """
 长期记忆 — 类似 MEMORY.md 的持久化方式。
-Agent 可以通过工具读写它，构成长期事实库。
+Agent 可以通过 `remember` / `read_memory` 工具读写它，构成长期事实库。
 """
 
 from pathlib import Path
@@ -28,6 +28,16 @@ class LongTermMemory:
             return self._path.read_text(encoding="utf-8")
         except Exception:
             return DEFAULT_MEMORY
+
+    def append(self, fact: str) -> str:
+        """追加一条事实记录"""
+        try:
+            current = self.load().rstrip() + "\n"
+            current += f"- {fact}\n"
+            self._path.write_text(current, encoding="utf-8")
+            return f"✓ 已追加事实：{fact}"
+        except Exception as e:
+            return f"写入失败：{e}"
 
     def update(self, content: str) -> str:
         """覆盖更新长期记忆"""
