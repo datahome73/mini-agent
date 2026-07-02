@@ -22,13 +22,25 @@ class TelegramChannel(BaseChannel):
         super().__init__("telegram")
         self._token = token
         self._app: Application | None = None
+        self._stop_event = asyncio.Event()
 
     async def start(self):
         """启动 Bot（长轮询）"""
         self._app = Application.builder().token(self._token).build()
         self._app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_update))
+        await self._app.initialize()
+        await self._app.start()
+        await self._app.updater.start_polling(allowed_updates=["messages"])
         logger.info("Telegram channel started, polling...")
-        await self._app.run_polling(allowed_updates=["messages"])
+        await self._stop_event.wait()
+
+    async def stop(self):
+        """停止 Bot"""
+        self._stop_event.set()
+        if self._app:
+            await self._app.updater.stop()
+            await self._app.stop()
+            await self._app.shutdown()
 
     async def _handle_update(self, update: Update, _context):
         """Telegram 回调 — 收到消息后的处理"""
