@@ -73,15 +73,9 @@ class AgentCore:
         # 在 AgentCore 中组装 system prompt（Provider 不关心 prompt 内容）
         system_prompt = identity_text
         if memory_text:
-            system_prompt += f"
-
-## 当前记忆
-{memory_text}"
+            system_prompt += f"\n\n## 当前记忆\n{memory_text}"
         if tools_desc:
-            system_prompt += f"
-
-## 可用工具
-{tools_desc}"
+            system_prompt += f"\n\n## 可用工具\n{tools_desc}"
 
         messages = [{"role": "system", "content": system_prompt}]
         for h in history:
