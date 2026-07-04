@@ -1,6 +1,6 @@
-# 🐈 南欧迷你 Agent
+# 🐈 迷因迷你 Agent
 
-一个极简的 AI Agent，基于 **nanobot** 的架构思路重新实现，用于学习和研究。
+一个极简的 AI Agent。System Prompt 从 provider 分离到独立的 identity.md 文件，与长期记忆一起由 AgentCore 组装。
 
 ## 特性
 
@@ -24,7 +24,7 @@ mini-agent/
 │   ├── cli.py            # 终端交互
 │   └── telegram.py       # Telegram Bot
 ├── provider/
-│   └── deepseek.py       # DeepSeek API 封装
+│   └── deepseek.py       # DeepSeek API 调用（纯管道，无业务逻辑）
 ├── tools/
 │   ├── base.py           # 工具基类
 │   ├── registry.py       # 工具注册表
@@ -33,7 +33,8 @@ mini-agent/
 │   └── shell.py          # Shell 执行
 ├── memory/
 │   ├── session.py        # 会话历史（JSONL）
-│   └── long_term.py      # 长期记忆（Markdown）
+│   ├── long_term.py      # 长期记忆（memory.md）
+│   └── identity.md       # 角色身份（首次运行自动创建）
 ├── security/
 │   └── workspace.py      # 路径沙箱
 ├── Dockerfile
@@ -49,8 +50,8 @@ mini-agent/
 |------|------|------|
 | `DEEPSEEK_API_KEY` | ✅ | DeepSeek API 密钥 |
 | `TELEGRAM_TOKEN` | ⚠️ Telegram 模式 | Telegram Bot Token |
-| `DEEPSEEK_BASE_URL` | 可选 | API 地址（默认 `https://api.deepseek.com`） |
-| `DEEPSEEK_MODEL` | 可选 | 模型名（默认 `deepseek-chat`） |
+| `DEEPSEEK_BASE_URL` | 可选 | API 地址（默认 `https://api.datahome73.com/v1`） |
+| `DEEPSEEK_MODEL` | 可选 | 模型名（默认 `deepseek-v4-flash`） |
 | `WORKSPACE_DIR` | 可选 | 数据目录（默认 `/app/data`） |
 | `MAX_TOOL_ITERATIONS` | 可选 | 最大工具调用轮数（默认 10） |
 
@@ -93,8 +94,8 @@ docker compose up -d
 bus.py → agent_core.py
             │
             ├─ memory/session.py    ← 加载最近对话
-            ├─ memory/long_term.py  ← 加载长期记忆
-            ├─ provider/deepseek.py ← 调 DeepSeek
+            ├─ memory/long_term.py  ← 加载长期记忆 + 角色身份
+            ├─ provider/deepseek.py ← 调 DeepSeek（纯管道）
             ├─ tools/registry.py    ← 执行工具调用
             │     └─ 循环直到 LLM 产出最终回答
             ├─ memory/session.py    → 保存对话

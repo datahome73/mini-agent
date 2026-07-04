@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 class Config:
     # DeepSeek
     api_key: str = ""
-    base_url: str = "https://api.deepseek.com"
-    model: str = "deepseek-chat"
+    base_url: str = "https://api.datahome73.com/v1"
+    model: str = "deepseek-v4-flash"
 
     # Telegram (可选)
     telegram_token: str = ""
@@ -28,8 +28,8 @@ class Config:
     def from_env(cls) -> "Config":
         return cls(
             api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
-            base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-            model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+            base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.datahome73.com/v1"),
+            model=os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
             telegram_token=os.environ.get("TELEGRAM_TOKEN", ""),
             workspace_dir=os.environ.get("WORKSPACE_DIR", "/app/data"),
             max_tool_iterations=int(os.environ.get("MAX_TOOL_ITERATIONS", "10")),

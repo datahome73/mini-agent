@@ -2,7 +2,7 @@
 Agent 核心 — Loop + Runner 合二为一。
 
 流程：
-  收到消息 → 加载记忆和会话 → 组装上下文 → 调 LLM
+  收到消息 → 加载身份/记忆/会话 → 组装上下文 → 调 LLM
   → 如果有工具调用 → 逐个执行 → 结果喂回 LLM → 重复
   → 最终回复 → 存入会话 → 返回
 """
@@ -62,20 +62,31 @@ class AgentCore:
         # 加载历史
         history = self.sessions.get_recent(msg.session_id, self.session_history_size)
 
-        # 加载长期记忆
+        # 加载身份与记忆
+        identity_text = self.ltm.load_identity()
         memory_text = self.ltm.load()
 
         # 工具描述
         tools_desc = self.tools.describe()
         tool_schemas = self.tools.get_schemas()
 
-        # 构建消息
-        messages = self.provider.build_messages(
-            user_text=msg.text,
-            history=history,
-            memory_text=memory_text,
-            tools_description=tools_desc,
-        )
+        # 在 AgentCore 中组装 system prompt（Provider 不关心 prompt 内容）
+        system_prompt = identity_text
+        if memory_text:
+            system_prompt += f"
+
+## 当前记忆
+{memory_text}"
+        if tools_desc:
+            system_prompt += f"
+
+## 可用工具
+{tools_desc}"
+
+        messages = [{"role": "system", "content": system_prompt}]
+        for h in history:
+            messages.append(h)
+        messages.append({"role": "user", "content": msg.text})
 
         # 工具调用循环
         for iteration in range(self.max_tool_iterations):

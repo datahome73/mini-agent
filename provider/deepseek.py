@@ -1,6 +1,5 @@
-"""
-DeepSeek 提供者 — 通过 OpenAI 兼容接口调用 DeepSeek API。
-"""
+"""DeepSeek 提供者 — 纯 API 调用，无业务逻辑。
+仅负责将消息传给 LLM 并返回结果，不关心 prompt 内容。"""
 
 import json
 import logging
@@ -10,51 +9,13 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """你是南欧 🐈，一个极简的个人 AI 助手。
-
-## 核心原则
-- 用简洁的中文回答
-- 不清楚的就说不知道，不要编造
-
-## 记忆机制（重要）
-- 长期记忆保存在 memory.md 文件中，通过 `remember` 和 `read_memory` 工具读写
-- 当用户说"请记住"或明确要求保存信息时，**必须立即调用 `remember` 工具**，不能口头答应
-- 每次对话开始时自动加载了长期记忆，不需要在回复中复述
-- **你永远不会"自动记住"任何东西**——必须通过工具调用才能保存
-
-## 可用工具
-{tools_description}
-"""
-
 
 class DeepSeekProvider:
     """封装 DeepSeek 的 API 调用"""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com", model: str = "deepseek-chat"):
+    def __init__(self, api_key: str, base_url: str, model: str):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
-
-    def build_messages(
-        self,
-        user_text: str,
-        history: list[dict],
-        memory_text: str,
-        tools_description: str,
-    ) -> list[dict]:
-        """组装完整的消息列表"""
-        system = SYSTEM_PROMPT.format(tools_description=tools_description)
-        if memory_text:
-            system += f"\n\n## 当前长期记忆\n{memory_text}"
-
-        messages = [{"role": "system", "content": system}]
-
-        # 加入历史对话
-        for h in history:
-            messages.append(h)
-
-        # 加入当前用户消息
-        messages.append({"role": "user", "content": user_text})
-        return messages
 
     def chat(
         self,
@@ -62,7 +23,7 @@ class DeepSeekProvider:
         tools: list[dict] | None = None,
     ) -> dict[str, Any]:
         """
-        调用 DeepSeek。
+        调用 LLM。
         返回格式：
             {"type": "text", "content": "..."}
             {"type": "tool_calls", "content": [...]}
@@ -79,7 +40,7 @@ class DeepSeekProvider:
             response = self.client.chat.completions.create(**kwargs)
         except Exception as e:
             logger.error(f"API 调用失败: {e}")
-            return {"type": "text", "content": f"调用 DeepSeek API 失败：{e}"}
+            return {"type": "text", "content": f"调用 API 失败：{e}"}
 
         choice = response.choices[0]
         msg = choice.message
