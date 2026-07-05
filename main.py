@@ -69,15 +69,14 @@ def build_agent(cfg: Config) -> AgentCore:
 async def run_cli(cfg: Config):
     """CLI 模式 — 流式输出"""
     agent = build_agent(cfg)
-    channel = CLIChannel(agent=agent)  # 传入 agent 启用流式
+    channel = CLIChannel(agent=agent)
     await channel.start()
 
 
 async def run_telegram(cfg: Config):
-    """Telegram 模式（非流式）"""
+    """Telegram 模式 — 流式输出（编辑消息模拟打字机）"""
     agent = build_agent(cfg)
-    channel = TelegramChannel(token=cfg.telegram_token)
-    channel.set_handler(agent.process_message)
+    channel = TelegramChannel(token=cfg.telegram_token, agent=agent)
     await channel.start()
 
 
