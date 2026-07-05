@@ -32,17 +32,14 @@ logger = logging.getLogger(__name__)
 
 def build_agent(cfg: Config) -> AgentCore:
     """组装 Agent 核心"""
-    # Provider
     provider = DeepSeekProvider(
         api_key=cfg.api_key,
         base_url=cfg.base_url,
         model=cfg.model,
     )
 
-    # 初始化文件工具沙箱
     init_sandbox(cfg.workspace_dir)
 
-    # 工具注册
     registry = ToolRegistry()
     registry.register(read_memory_tool)
     registry.register(remember_tool)
@@ -53,14 +50,11 @@ def build_agent(cfg: Config) -> AgentCore:
     registry.register(web_search_tool)
     registry.register(shell_tool)
 
-    # 记忆
     session_memory = SessionMemory(cfg.workspace_dir)
     long_term_memory = LongTermMemory(cfg.workspace_dir)
 
-    # 初始化记忆工具
     init_memory_tools(long_term_memory)
 
-    # Agent
     agent = AgentCore(
         provider=provider,
         tool_registry=registry,
@@ -73,15 +67,14 @@ def build_agent(cfg: Config) -> AgentCore:
 
 
 async def run_cli(cfg: Config):
-    """CLI 模式"""
+    """CLI 模式 — 流式输出"""
     agent = build_agent(cfg)
-    channel = CLIChannel()
-    channel.set_handler(agent.process_message)
+    channel = CLIChannel(agent=agent)  # 传入 agent 启用流式
     await channel.start()
 
 
 async def run_telegram(cfg: Config):
-    """Telegram 模式"""
+    """Telegram 模式（非流式）"""
     agent = build_agent(cfg)
     channel = TelegramChannel(token=cfg.telegram_token)
     channel.set_handler(agent.process_message)
