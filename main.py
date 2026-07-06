@@ -18,6 +18,7 @@ from tools.shell import shell_tool
 from tools.memory_tool import init as init_memory_tools, read_memory_tool, remember_tool
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
+from cron.scheduler import CronScheduler, CronJob, parse_interval
 from agent_core import AgentCore
 
 from channels.cli import CLIChannel
@@ -70,6 +71,17 @@ async def run_cli(cfg: Config):
     """CLI 模式 — 流式输出"""
     agent = build_agent(cfg)
     channel = CLIChannel(agent=agent)
+
+    if cfg.cron_enabled:
+        scheduler = CronScheduler(agent, channel)
+        scheduler.add_job(CronJob(
+            name="heartbeat",
+            interval_sec=parse_interval(cfg.cron_interval),
+            prompt=cfg.cron_prompt,
+            chat_id=cfg.cron_chat_id,
+        ))
+        asyncio.create_task(scheduler.run())
+
     await channel.start()
 
 
@@ -77,6 +89,17 @@ async def run_telegram(cfg: Config):
     """Telegram 模式 — 流式输出（编辑消息模拟打字机）"""
     agent = build_agent(cfg)
     channel = TelegramChannel(token=cfg.telegram_token, agent=agent)
+
+    if cfg.cron_enabled:
+        scheduler = CronScheduler(agent, channel)
+        scheduler.add_job(CronJob(
+            name="heartbeat",
+            interval_sec=parse_interval(cfg.cron_interval),
+            prompt=cfg.cron_prompt,
+            chat_id=cfg.cron_chat_id,
+        ))
+        asyncio.create_task(scheduler.run())
+
     await channel.start()
 
 

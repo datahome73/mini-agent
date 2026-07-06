@@ -24,6 +24,12 @@ class Config:
     max_tool_iterations: int = 10
     session_history_size: int = 20
 
+    # Cron 定时任务
+    cron_enabled: bool = False
+    cron_interval: str = "1d"
+    cron_prompt: str = "心跳检测：回复当前状态和一句'我还活着'"
+    cron_chat_id: str = ""
+
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
@@ -34,6 +40,10 @@ class Config:
             workspace_dir=os.environ.get("WORKSPACE_DIR", "/app/data"),
             max_tool_iterations=int(os.environ.get("MAX_TOOL_ITERATIONS", "10")),
             session_history_size=int(os.environ.get("SESSION_HISTORY_SIZE", "20")),
+            cron_enabled=os.environ.get("CRON_ENABLED", "").lower() in ("1", "true", "yes"),
+            cron_interval=os.environ.get("CRON_INTERVAL", "1d"),
+            cron_prompt=os.environ.get("CRON_PROMPT", "心跳检测：回复当前状态和一句'我还活着'"),
+            cron_chat_id=os.environ.get("CRON_CHAT_ID", ""),
         )
 
     def validate(self):
