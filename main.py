@@ -20,6 +20,7 @@ from tools.memory_tool import init as init_memory_tools, read_memory_tool, remem
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
 from cron.scheduler import CronScheduler, CronJob, parse_interval
+from plugin_loader import PluginLoader
 from agent_core import AgentCore
 
 from channels.cli import CLIChannel
@@ -57,6 +58,24 @@ def build_agent(cfg: Config) -> AgentCore:
     long_term_memory = LongTermMemory(cfg.workspace_dir)
 
     init_memory_tools(long_term_memory)
+
+    # 加载第三方插件
+    context = {
+        'workspace_dir': cfg.workspace_dir,
+        'agent_config': {
+            'model': cfg.model,
+            'max_tool_iterations': cfg.max_tool_iterations,
+            'session_history_size': cfg.session_history_size,
+        },
+    }
+    if long_term_memory is not None:
+        context['long_term_memory'] = long_term_memory
+    plugin_loader = PluginLoader(plugins_dir='plugins')
+    loaded_plugins = plugin_loader.load_all(registry, context)
+    if loaded_plugins:
+        logger.info('共加载 %d 个插件', len(loaded_plugins))
+        for p in loaded_plugins:
+            logger.info('  ✓ %s: %s', p.name, p.description)
 
     agent = AgentCore(
         provider=provider,

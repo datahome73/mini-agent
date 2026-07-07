@@ -15,6 +15,39 @@
 
 ```
 mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
+mini-agent/
 ├── main.py               # 入口
 ├── config.py             # 环境变量配置
 ├── bus.py                # 消息总线（消息定义）
@@ -41,6 +74,39 @@ mini-agent/
 ├── docker-compose.yml
 └── requirements.txt
 ```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
 
 ## 配置
 
@@ -59,6 +125,39 @@ mini-agent/
 
 ### CLI 模式
 
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
 ```bash
 # 直接运行
 export DEEPSEEK_API_KEY=sk-xxx
@@ -71,9 +170,75 @@ docker run -it --rm \
   -v ./data:/app/data \
   mini-agent
 ```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
 
 ### Telegram 模式
 
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
 ```bash
 # 直接运行
 export DEEPSEEK_API_KEY=sk-xxx
@@ -84,9 +249,354 @@ python main.py telegram
 cp .env.example .env   # 填入你的密钥
 docker compose up -d
 ```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
+
+## 插件系统
+
+插件让你无需修改核心代码即可扩展 Agent 的能力。每个插件是一个  目录，导出  类。
+
+### 插件结构
+
+
+
+### 编写插件
+
+
+
+### 使用插件
+
+1. 在  下创建插件目录和 
+2. 启动 agent，插件自动加载：
+   
+
+无需修改  或重启 Docker 以外的任何配置。
+
+### 示例
+
+项目自带  示例插件，提供  和  两个工具。可以直接删除或参考它编写自己的插件。
+
+---
+
+## 插件系统
+
+插件让你无需修改核心代码即可扩展 Agent 的能力。每个插件是一个 `plugins/<name>/` 目录，导出 `Plugin` 类。
+
+### 插件结构
+
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
+plugins/
++-- example/               # 插件目录
+|   +-- __init__.py        # 导出 Plugin 类
++-- your_plugin/
+    +-- __init__.py
+    +-- config.json         # 可选配置文件
+    +-- helper.py           # 可选辅助模块
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
+
+### 编写插件
+
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```python
+from tools.base import Tool
+
+
+class Plugin:
+    name = "my_plugin"                # 唯一标识
+    description = "我的插件说明"
+
+    def on_load(self, context: dict):
+        """可选：初始化钩子（注册工具前调用）"""
+        # context 包含：
+        #   workspace_dir     - 工作空间路径
+        #   agent_config      - Agent 配置字典
+        #   long_term_memory  - 长期记忆对象（可选）
+        pass
+
+    def get_tools(self) -> list[Tool]:
+        """返回本插件提供的工具列表"""
+        return [my_tool]
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
+
+### 使用插件
+
+1. 在 `plugins/` 下创建插件目录和 `__init__.py`
+2. 启动 agent，插件自动加载：
+   ```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
+   2026-07-07 [INFO] plugin_loader: 插件已加载: example (2 个工具)
+   ```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
+```
+
+无需修改 `main.py` 或重启 Docker 以外的任何配置。
+
+### 示例
+
+项目自带 `plugins/example/` 示例插件，提供 `greet` 和 `count_tokens` 两个工具。可以直接删除或参考它编写自己的插件。
+
+---
 
 ## 架构理解
 
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
 ```
 你输入 (CLI / Telegram)
   │  InboundMessage
@@ -103,6 +613,39 @@ bus.py → agent_core.py
   │
   ▼
 发回给你
+```
+mini-agent/
++-- main.py               # 入口
++-- config.py             # 环境变量配置
++-- bus.py                # 消息总线（消息定义）
++-- agent_core.py         # Agent 核心（Loop + Runner）
++-- plugin_loader.py      # 插件加载器
++-- channels/
+|   +-- base.py           # 渠道抽象
+|   +-- cli.py            # 终端交互
+|   +-- telegram.py       # Telegram Bot
++-- provider/
+|   +-- deepseek.py       # DeepSeek API 调用
++-- tools/
+|   +-- base.py           # 工具基类
+|   +-- registry.py       # 工具注册表
+|   +-- filesystem.py     # 文件工具
+|   +-- http.py           # HTTP 请求
+|   +-- web.py            # 网络工具
+|   +-- shell.py          # Shell 执行
+|   +-- memory_tool.py    # 记忆工具
++-- memory/
+|   +-- session.py        # 会话历史（JSONL）
+|   +-- long_term.py      # 长期记忆（memory.md）
+|   +-- identity.md       # 角色身份
++-- plugins/
+|   +-- example/          # 示例插件
+|       +-- __init__.py
++-- security/
+|   +-- workspace.py      # 路径沙箱
++-- Dockerfile
++-- docker-compose.yml
++-- requirements.txt
 ```
 
 核心设计理念：**消息驱动、双循环（LLM ↔ Tool）、一次性写完、可追踪调试**。
