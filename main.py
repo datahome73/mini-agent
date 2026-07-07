@@ -15,6 +15,7 @@ from tools.registry import ToolRegistry
 from tools.filesystem import init_sandbox, read_file_tool, write_file_tool, search_tool
 from tools.web import web_fetch_tool, web_search_tool
 from tools.shell import shell_tool
+from tools.http import http_request_tool
 from tools.memory_tool import init as init_memory_tools, read_memory_tool, remember_tool
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
@@ -50,6 +51,7 @@ def build_agent(cfg: Config) -> AgentCore:
     registry.register(web_fetch_tool)
     registry.register(web_search_tool)
     registry.register(shell_tool)
+    registry.register(http_request_tool)
 
     session_memory = SessionMemory(cfg.workspace_dir)
     long_term_memory = LongTermMemory(cfg.workspace_dir)
