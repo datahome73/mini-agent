@@ -7,7 +7,7 @@ import logging
 
 from telegram import Update
 from telegram.constants import ChatAction
-from telegram.ext import Application, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from channels.base import BaseChannel
 from bus import InboundMessage, OutboundMessage
@@ -29,6 +29,7 @@ class TelegramChannel(BaseChannel):
 
     async def start(self):
         self._app = Application.builder().token(self._token).build()
+        self._app.add_handler(CommandHandler("trace", self._handle_trace))
         self._app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_update)
         )
@@ -102,6 +103,19 @@ class TelegramChannel(BaseChannel):
                 await update.message.reply_text(f"内部错误：{e}")
             except Exception:
                 pass
+
+    async def _handle_trace(self, update: Update, _context):
+        if not update.message:
+            return
+        if not self._agent:
+            await update.message.reply_text("Agent 未启用，无法查看 trace。")
+            return
+
+        chat_id = str(update.effective_chat.id)
+        user_id = str(update.effective_user.id) if update.effective_user else chat_id
+        session_id = f"telegram:{chat_id}:{user_id}"
+        text = self._agent.format_last_trace(session_id)
+        await update.message.reply_text(text)
 
     async def send(self, msg: OutboundMessage):
         if self._app and msg.chat_id:

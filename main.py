@@ -19,6 +19,7 @@ from tools.http import http_request_tool
 from tools.memory_tool import init as init_memory_tools, read_memory_tool, remember_tool
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
+from memory.trace import TraceStore
 from cron.scheduler import CronScheduler, CronJob, parse_interval
 from plugin_loader import PluginLoader
 from agent_core import AgentCore
@@ -56,6 +57,7 @@ def build_agent(cfg: Config) -> AgentCore:
 
     session_memory = SessionMemory(cfg.workspace_dir)
     long_term_memory = LongTermMemory(cfg.workspace_dir)
+    trace_store = TraceStore(cfg.workspace_dir)
 
     init_memory_tools(long_term_memory)
 
@@ -82,6 +84,7 @@ def build_agent(cfg: Config) -> AgentCore:
         tool_registry=registry,
         session_memory=session_memory,
         long_term_memory=long_term_memory,
+        trace_store=trace_store,
         max_tool_iterations=cfg.max_tool_iterations,
         session_history_size=cfg.session_history_size,
     )

@@ -33,6 +33,12 @@ class CLIChannel(BaseChannel):
             if text == "/quit":
                 print("再见！")
                 break
+            if text == "/trace":
+                if self.agent:
+                    print("\n" + self.agent.format_last_trace("cli-default") + "\n")
+                else:
+                    print("\nAgent 未启用，无法查看 trace。\n")
+                continue
 
             inbound = InboundMessage(
                 channel="cli",

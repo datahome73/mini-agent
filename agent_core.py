@@ -17,6 +17,7 @@ from provider.deepseek import DeepSeekProvider
 from tools.registry import ToolRegistry
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
+from memory.trace import TraceStore
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class AgentCore:
         tool_registry: ToolRegistry,
         session_memory: SessionMemory,
         long_term_memory: LongTermMemory,
+        trace_store: TraceStore | None = None,
         max_tool_iterations: int = 10,
         session_history_size: int = 20,
     ):
@@ -37,6 +39,7 @@ class AgentCore:
         self.tools = tool_registry
         self.sessions = session_memory
         self.ltm = long_term_memory
+        self.trace_store = trace_store
         self.max_tool_iterations = max_tool_iterations
         self.session_history_size = session_history_size
 
@@ -85,6 +88,12 @@ class AgentCore:
 
     # ---- 内部实现 ----
 
+    def format_last_trace(self, session_id: str) -> str:
+        """返回指定会话最近一次 trace 的可读文本。"""
+        if self.trace_store is None:
+            return "trace 功能未启用。"
+        return self.trace_store.format_last(session_id)
+
     def _build_messages(self, msg: InboundMessage) -> list[dict]:
         """组装消息列表（system + 历史 + 当前用户消息）"""
         history = self.sessions.get_recent(msg.session_id, self.session_history_size)
@@ -109,62 +118,111 @@ class AgentCore:
         """非流式核心处理逻辑"""
         messages = self._build_messages(msg)
         tool_schemas = self.tools.get_schemas()
+        trace = TraceStore.new_trace(msg) if self.trace_store else None
 
-        for iteration in range(self.max_tool_iterations):
-            logger.info(f"Agent 迭代 {iteration + 1}/{self.max_tool_iterations}")
+        try:
+            for iteration in range(self.max_tool_iterations):
+                logger.info(f"Agent 迭代 {iteration + 1}/{self.max_tool_iterations}")
 
-            result = self.provider.chat(
-                messages=messages,
-                tools=tool_schemas if tool_schemas else None,
-            )
-
-            if result["type"] == "text":
-                return result["content"] or "(空回复)"
-
-            tool_calls = result["content"]
-            for tc in tool_calls:
-                name = tc["name"]
-                args = tc["args"]
-                tool_id = tc["id"]
-
-                logger.info(f"  调用工具: {name}({args})")
-                self._append_tool_result(
-                    messages, tc,
-                    await self._execute_tool(name, args, tool_id),
+                result = self.provider.chat(
+                    messages=messages,
+                    tools=tool_schemas if tool_schemas else None,
                 )
+                trace_item = self._trace_iteration(trace, iteration + 1, result)
 
-        return "抱歉，我思考了太久还没得出答案，请简化你的问题。"
+                if result["type"] == "text":
+                    final_text = result["content"] or "(空回复)"
+                    if trace is not None:
+                        trace["final_answer"] = final_text
+                    return final_text
+
+                tool_calls = result["content"]
+                for tc in tool_calls:
+                    name = tc["name"]
+                    args = tc["args"]
+                    tool_id = tc["id"]
+
+                    logger.info(f"  调用工具: {name}({args})")
+                    result_text = await self._execute_tool(name, args, tool_id)
+                    self._trace_tool_result(trace_item, tc, result_text)
+                    self._append_tool_result(messages, tc, result_text)
+
+            final_text = "抱歉，我思考了太久还没得出答案，请简化你的问题。"
+            if trace is not None:
+                trace["final_answer"] = final_text
+            return final_text
+        except Exception as e:
+            if trace is not None:
+                trace["error"] = str(e)
+            raise
+        finally:
+            if trace is not None:
+                self.trace_store.save(trace)
 
     async def _process_stream(self, msg: InboundMessage) -> AsyncGenerator[str, None]:
         """流式核心处理逻辑。yield 文本片段。"""
         messages = self._build_messages(msg)
         tool_schemas = self.tools.get_schemas()
+        trace = TraceStore.new_trace(msg) if self.trace_store else None
+        final_text = ""
 
-        for iteration in range(self.max_tool_iterations):
-            logger.info(f"Agent 迭代 {iteration + 1}/{self.max_tool_iterations}")
+        try:
+            for iteration in range(self.max_tool_iterations):
+                logger.info(f"Agent 迭代 {iteration + 1}/{self.max_tool_iterations}")
 
-            tool_calls_result = None
-            async for chunk in self.provider.chat_stream(
-                messages, tool_schemas if tool_schemas else None,
-            ):
-                if chunk["type"] == "text":
-                    yield chunk["content"]
-                elif chunk["type"] == "tool_calls":
-                    tool_calls_result = chunk["content"]
+                tool_calls_result = None
+                streamed_text = ""
+                trace_item = {
+                    "index": iteration + 1,
+                    "result_type": "text",
+                    "text_preview": "",
+                    "tool_calls": [],
+                }
+                if trace is not None:
+                    trace["iterations"].append(trace_item)
 
-            if tool_calls_result is None:
-                return  # 纯文本，流式完成
+                async for chunk in self.provider.chat_stream(
+                    messages, tool_schemas if tool_schemas else None,
+                ):
+                    if chunk["type"] == "text":
+                        streamed_text += chunk["content"]
+                        final_text += chunk["content"]
+                        if trace_item is not None:
+                            trace_item["text_preview"] = streamed_text[:1000]
+                        yield chunk["content"]
+                    elif chunk["type"] == "tool_calls":
+                        tool_calls_result = chunk["content"]
 
-            # 处理工具调用（非流式，和现有逻辑一致）
-            for tc in tool_calls_result:
-                name = tc["name"]
-                args = tc["args"]
-                tool_id = tc["id"]
-                logger.info(f"  调用工具: {name}({args})")
-                result_text = await self._execute_tool(name, args, tool_id)
-                self._append_tool_result(messages, tc, result_text)
+                if tool_calls_result is None:
+                    if trace is not None:
+                        trace["final_answer"] = final_text
+                    return  # 纯文本，流式完成
 
-        yield "抱歉，我思考了太久还没得出答案，请简化你的问题。"
+                trace_item["result_type"] = "tool_calls"
+
+                # 处理工具调用（非流式，和现有逻辑一致）
+                for tc in tool_calls_result:
+                    name = tc["name"]
+                    args = tc["args"]
+                    tool_id = tc["id"]
+                    logger.info(f"  调用工具: {name}({args})")
+                    result_text = await self._execute_tool(name, args, tool_id)
+                    self._trace_tool_result(trace_item, tc, result_text)
+                    self._append_tool_result(messages, tc, result_text)
+
+            final_text = "抱歉，我思考了太久还没得出答案，请简化你的问题。"
+            if trace is not None:
+                trace["final_answer"] = final_text
+            yield final_text
+        except Exception as e:
+            if trace is not None:
+                trace["error"] = str(e)
+            raise
+        finally:
+            if trace is not None:
+                if final_text and not trace.get("final_answer"):
+                    trace["final_answer"] = final_text
+                self.trace_store.save(trace)
 
     async def _execute_tool(self, name: str, args: dict, tool_id: str) -> str:
         """执行单个工具调用，返回结果文本"""
@@ -193,4 +251,30 @@ class AgentCore:
             "role": "tool",
             "tool_call_id": tc["id"],
             "content": result_text[:3000],
+        })
+
+    def _trace_iteration(self, trace: dict | None, index: int, result: dict) -> dict | None:
+        """Append one LLM iteration to the trace."""
+        if trace is None:
+            return None
+        item = {
+            "index": index,
+            "result_type": result.get("type"),
+            "text_preview": "",
+            "tool_calls": [],
+        }
+        if result.get("type") == "text":
+            item["text_preview"] = (result.get("content") or "")[:1000]
+        trace["iterations"].append(item)
+        return item
+
+    def _trace_tool_result(self, trace_item: dict | None, tc: dict, result_text: str):
+        """Append one tool call result to the current trace item."""
+        if trace_item is None:
+            return
+        trace_item["tool_calls"].append({
+            "id": tc.get("id"),
+            "name": tc.get("name"),
+            "args": tc.get("args", {}),
+            "result_preview": result_text[:1000],
         })
