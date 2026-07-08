@@ -46,6 +46,9 @@ class DeepSeekProvider:
         choice = response.choices[0]
         msg = choice.message
 
+        # 提取 reasoning_content（DeepSeek thinking 模式）
+        reasoning = getattr(msg, 'reasoning_content', None) or ''
+
         # 处理工具调用
         if msg.tool_calls:
             tool_calls = []
@@ -59,7 +62,11 @@ class DeepSeekProvider:
                     "name": tc.function.name,
                     "args": args,
                 })
-            return {"type": "tool_calls", "content": tool_calls}
+            return {
+                "type": "tool_calls",
+                "content": tool_calls,
+                "reasoning_content": reasoning,
+            }
 
         # 纯文本回复
         return {"type": "text", "content": msg.content or ""}
@@ -92,11 +99,17 @@ class DeepSeekProvider:
             return
 
         tool_call_deltas: dict[int, dict] = {}
+        reasoning_content = ""
 
         async for chunk in stream:
             delta = chunk.choices[0].delta if chunk.choices else None
             if delta is None:
                 continue
+
+            # 累积 reasoning_content（DeepSeek thinking 模式）
+            rc = getattr(delta, 'reasoning_content', None)
+            if rc:
+                reasoning_content += rc
 
             if delta.content:
                 yield {"type": "text", "content": delta.content}
@@ -130,4 +143,8 @@ class DeepSeekProvider:
                     "name": tc["function"]["name"],
                     "args": args,
                 })
-            yield {"type": "tool_calls", "content": tool_calls}
+            yield {
+                "type": "tool_calls",
+                "content": tool_calls,
+                "reasoning_content": reasoning_content,
+            }

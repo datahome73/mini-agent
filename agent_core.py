@@ -146,6 +146,27 @@ class AgentCore:
                     return final_text
 
                 tool_calls = result["content"]
+                reasoning = result.get("reasoning_content", "")
+
+                # 一个 assistant 消息包含本轮所有 tool_calls（保留 reasoning_content）
+                assistant_msg = {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": str(tc["args"]),
+                            },
+                        }
+                        for tc in tool_calls
+                    ],
+                }
+                if reasoning:
+                    assistant_msg["reasoning_content"] = reasoning
+                messages.append(assistant_msg)
+
                 for tc in tool_calls:
                     name = tc["name"]
                     args = tc["args"]
@@ -154,7 +175,11 @@ class AgentCore:
                     logger.info(f"  调用工具: {name}({args})")
                     result_text = await self._execute_tool(name, args, tool_id)
                     self._trace_tool_result(trace_item, tc, result_text)
-                    self._append_tool_result(messages, tc, result_text)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result_text[:3000],
+                    })
 
             final_text = "抱歉，我思考了太久还没得出答案，请简化你的问题。"
             if trace is not None:
@@ -180,6 +205,7 @@ class AgentCore:
                 logger.info(f"Agent 迭代 {iteration + 1}/{self.max_tool_iterations}")
 
                 tool_calls_result = None
+                tool_calls_reasoning = ""
                 streamed_text = ""
                 trace_item = {
                     "index": iteration + 1,
@@ -201,6 +227,7 @@ class AgentCore:
                         yield chunk["content"]
                     elif chunk["type"] == "tool_calls":
                         tool_calls_result = chunk["content"]
+                        tool_calls_reasoning = chunk.get("reasoning_content", "")
 
                 if tool_calls_result is None:
                     if trace is not None:
@@ -208,16 +235,39 @@ class AgentCore:
                     return  # 纯文本，流式完成
 
                 trace_item["result_type"] = "tool_calls"
+                tc_list = tool_calls_result
 
-                # 处理工具调用（非流式，和现有逻辑一致）
-                for tc in tool_calls_result:
+                # 一个 assistant 消息包含本轮所有 tool_calls（保留 reasoning_content）
+                assistant_msg = {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": str(tc["args"]),
+                            },
+                        }
+                        for tc in tc_list
+                    ],
+                }
+                if tool_calls_reasoning:
+                    assistant_msg["reasoning_content"] = tool_calls_reasoning
+                messages.append(assistant_msg)
+
+                for tc in tc_list:
                     name = tc["name"]
                     args = tc["args"]
                     tool_id = tc["id"]
                     logger.info(f"  调用工具: {name}({args})")
                     result_text = await self._execute_tool(name, args, tool_id)
                     self._trace_tool_result(trace_item, tc, result_text)
-                    self._append_tool_result(messages, tc, result_text)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result_text[:3000],
+                    })
 
             final_text = "抱歉，我思考了太久还没得出答案，请简化你的问题。"
             if trace is not None:
@@ -245,22 +295,6 @@ class AgentCore:
             return result_text
         except Exception as e:
             return f"工具执行失败：{e}"
-
-    def _append_tool_result(self, messages: list[dict], tc: dict, result_text: str):
-        """把工具调用和结果追加到消息列表"""
-        messages.append({
-            "role": "assistant",
-            "tool_calls": [{
-                "id": tc["id"],
-                "type": "function",
-                "function": {"name": tc["name"], "arguments": str(tc["args"])},
-            }],
-        })
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tc["id"],
-            "content": result_text[:3000],
-        })
 
     def _trace_iteration(self, trace: dict | None, index: int, result: dict) -> dict | None:
         """Append one LLM iteration to the trace."""
