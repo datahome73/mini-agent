@@ -20,6 +20,7 @@ from tools.memory_tool import init as init_memory_tools, read_memory_tool, remem
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
 from memory.trace import TraceStore
+from memory.context_manager import ContextManager, ContextConfig
 from cron.scheduler import CronScheduler, CronJob, parse_interval
 from plugin_loader import PluginLoader
 from agent_core import AgentCore
@@ -79,12 +80,23 @@ def build_agent(cfg: Config) -> AgentCore:
         for p in loaded_plugins:
             logger.info('  ✓ %s: %s', p.name, p.description)
 
+    context_config = ContextConfig(
+        max_total_tokens=cfg.context_max_total_tokens,
+        system_max_tokens=cfg.context_system_max_tokens,
+        tools_max_tokens=cfg.context_tools_max_tokens,
+        history_max_tokens=cfg.context_history_max_tokens,
+        min_history_messages=cfg.context_min_history_messages,
+        max_history_messages=cfg.context_max_history_messages,
+    )
+    context_manager = ContextManager(config=context_config)
+
     agent = AgentCore(
         provider=provider,
         tool_registry=registry,
         session_memory=session_memory,
         long_term_memory=long_term_memory,
         trace_store=trace_store,
+        context_manager=context_manager,
         max_tool_iterations=cfg.max_tool_iterations,
         session_history_size=cfg.session_history_size,
     )

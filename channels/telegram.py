@@ -30,6 +30,7 @@ class TelegramChannel(BaseChannel):
     async def start(self):
         self._app = Application.builder().token(self._token).build()
         self._app.add_handler(CommandHandler("trace", self._handle_trace))
+        self._app.add_handler(CommandHandler("stats", self._handle_stats))
         self._app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_update)
         )
@@ -103,6 +104,15 @@ class TelegramChannel(BaseChannel):
                 await update.message.reply_text(f"内部错误：{e}")
             except Exception:
                 pass
+
+    async def _handle_stats(self, update: Update, _context):
+        if not update.message:
+            return
+        if not self._agent:
+            await update.message.reply_text("Agent 未启用。")
+            return
+        text = self._agent.format_context_report()
+        await update.message.reply_text(text)
 
     async def _handle_trace(self, update: Update, _context):
         if not update.message:

@@ -18,6 +18,7 @@ from tools.registry import ToolRegistry
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
 from memory.trace import TraceStore
+from memory.context_manager import ContextManager, ContextReport
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class AgentCore:
         session_memory: SessionMemory,
         long_term_memory: LongTermMemory,
         trace_store: TraceStore | None = None,
+        context_manager: ContextManager | None = None,
         max_tool_iterations: int = 10,
         session_history_size: int = 20,
     ):
@@ -40,8 +42,10 @@ class AgentCore:
         self.sessions = session_memory
         self.ltm = long_term_memory
         self.trace_store = trace_store
+        self.context_manager = context_manager or ContextManager()
         self.max_tool_iterations = max_tool_iterations
         self.session_history_size = session_history_size
+        self._last_context_report: ContextReport | None = None
 
     async def process_message(self, msg: InboundMessage) -> OutboundMessage:
         """处理一条入站消息，返回出站回复（非流式）"""
@@ -94,24 +98,29 @@ class AgentCore:
             return "trace 功能未启用。"
         return self.trace_store.format_last(session_id)
 
+    def format_context_report(self) -> str:
+        """返回最近一次上下文的预算使用报告"""
+        return self.context_manager.format_report(self._last_context_report)
+
     def _build_messages(self, msg: InboundMessage) -> list[dict]:
-        """组装消息列表（system + 历史 + 当前用户消息）"""
+        """组装消息列表（system + 历史 + 当前用户消息）
+
+        使用 ContextManager 进行预算管理，超预算时自动截断旧消息。
+        """
         history = self.sessions.get_recent(msg.session_id, self.session_history_size)
         identity_text = self.ltm.load_identity()
         memory_text = self.ltm.load()
         tools_desc = self.tools.describe()
         tool_schemas = self.tools.get_schemas()
 
-        system_prompt = identity_text
-        if memory_text:
-            system_prompt += f"\n\n## 当前记忆\n{memory_text}"
-        if tools_desc:
-            system_prompt += f"\n\n## 可用工具\n{tools_desc}"
-
-        messages = [{"role": "system", "content": system_prompt}]
-        for h in history:
-            messages.append(h)
-        messages.append({"role": "user", "content": msg.text})
+        messages, report = self.context_manager.build_context(
+            identity_text=identity_text,
+            memory_text=memory_text,
+            tools_desc=tools_desc,
+            history=history,
+            user_text=msg.text,
+        )
+        self._last_context_report = report
         return messages
 
     async def _process(self, msg: InboundMessage) -> str:

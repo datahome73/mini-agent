@@ -19,7 +19,7 @@ class CLIChannel(BaseChannel):
         """阻塞式运行，从 stdin 读消息，发到 stdout"""
         mode_label = "流式" if self.agent else "非流式"
         print(f"🐈 南欧迷你 Agent — CLI 模式（{mode_label}）")
-        print("输入你的消息，输入 /quit 退出\n")
+        print("输入你的消息，输入 /quit 退出，/trace 看执行轨迹，/stats 看上下文用量\n")
 
         while True:
             try:
@@ -38,6 +38,12 @@ class CLIChannel(BaseChannel):
                     print("\n" + self.agent.format_last_trace("cli-default") + "\n")
                 else:
                     print("\nAgent 未启用，无法查看 trace。\n")
+                continue
+            if text == "/stats":
+                if self.agent:
+                    print("\n" + self.agent.format_context_report() + "\n")
+                else:
+                    print("\nAgent 未启用。\n")
                 continue
 
             inbound = InboundMessage(
