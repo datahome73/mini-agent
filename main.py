@@ -17,7 +17,14 @@ from tools.web import web_fetch_tool, web_search_tool
 from tools.shell import shell_tool
 from tools.http import http_request_tool
 from tools.memory_tool import init as init_memory_tools, read_memory_tool, remember_tool
-from tools.skill import init as init_skill_tools, load_skill_tool, list_skills_tool
+from tools.skill import init as init_skill_tools, load_skill_tool, list_skills_tool, learn_skill_tool
+from tools.credential_tool import (
+    init as init_credential_tools,
+    save_credential_tool,
+    get_credential_tool,
+    list_credentials_tool,
+    delete_credential_tool,
+)
 from tools.mcp_tool import build_mcp_tools
 from mcp_client.manager import MCPManager
 from memory.session import SessionMemory
@@ -60,6 +67,11 @@ def build_agent(cfg: Config, mcp_manager: MCPManager | None = None) -> AgentCore
     registry.register(http_request_tool)
     registry.register(load_skill_tool)
     registry.register(list_skills_tool)
+    registry.register(learn_skill_tool)
+    registry.register(save_credential_tool)
+    registry.register(get_credential_tool)
+    registry.register(list_credentials_tool)
+    registry.register(delete_credential_tool)
 
     session_memory = SessionMemory(cfg.workspace_dir)
     long_term_memory = LongTermMemory(cfg.workspace_dir)
@@ -67,6 +79,7 @@ def build_agent(cfg: Config, mcp_manager: MCPManager | None = None) -> AgentCore
 
     init_memory_tools(long_term_memory)
     init_skill_tools("skills")
+    init_credential_tools(cfg.workspace_dir)
 
     # 加载第三方插件
     context = {

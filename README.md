@@ -10,7 +10,8 @@
 - **Telegram 优先**：日常使用通过 Telegram Bot 聊天
 - **CLI 保留**：用于本地调试和后续扩展
 - **工具调用**：文件读写、Web 抓取/搜索、HTTP 请求、Shell 命令、记忆读写
-- **技能系统**：`skills/` 目录下的 .md 文档即技能，agent 用 `load_skill` / `list_skills` 自学新能力
+- **技能系统**：`skills/` 目录下的 .md 文档即技能，agent 用 `load_skill` / `list_skills` 自学，用 `learn_skill` 从网络下载新技能
+- **凭证管理**：安全存储 API Key、Token，不污染长期记忆
 - **MCP 工具**：通过标准 MCP 协议连接外部工具服务器，零代码扩展工具集
 - **记忆体系**：JSONL 会话历史 + Markdown 长期记忆
 - **插件系统**：在 `plugins/` 下新增插件即可扩展工具
@@ -40,7 +41,8 @@ mini-agent/
 |   |-- web.py            # Web 抓取/搜索工具
 |   |-- shell.py          # Shell 工具
 |   |-- memory_tool.py    # 长期记忆工具
-|   |-- skill.py          # 技能文档读取工具
+|   |-- skill.py          # 技能文档读取 + learn_skill
+|   |-- credential_tool.py # 凭证管理工具
 |-- skills/
 |   |-- joke-teller.md    # 示例技能：讲笑话
 |-- mcp_client/
@@ -220,7 +222,35 @@ description: "讲笑话 — 用户说'讲个笑话'时用"
 ...
 ```
 
-后续可以用 `learn_skill(url)` 从网络下载 skill 文件，实现持续进化。
+### 从网络学习新技能
+
+Agent 可以用 `learn_skill(url)` 从任意 URL 下载 .md 技能文档到 `skills/` 目录：
+
+```
+learn_skill("https://example.com/skills/meyo-registration.md", name="meyo-registration")
+```
+
+参数 `name` 可选，不传则自动从 URL 文件名或文档 frontmatter 推断。下载后立即可用 `load_skill` 加载。
+
+## 凭证管理（Credential）
+
+敏感信息（API Key、Token、密码）不适合放在长期记忆里。凭证管理系统把它们存为 `<WORKSPACE_DIR>/credentials.json`，独立于记忆文件。
+
+### 工具
+
+| 工具 | 功能 |
+|------|------|
+| `save_credential(name, value)` | 保存一条凭证（同名覆盖） |
+| `get_credential(name)` | 读取凭证的值 |
+| `list_credentials()` | 列出所有凭证名称（不显示值） |
+| `delete_credential(name)` | 删除一条凭证 |
+
+### 使用场景
+
+```
+你提供 API Key → agent 调用 save_credential 存到文件
+需要调用外部 API → agent 调用 get_credential 读取密钥 → 用 http_request 调用
+```
 
 ## MCP 工具系统
 
@@ -272,6 +302,7 @@ memory.md              # 长期记忆
 identity.md            # 角色身份
 sessions/*.jsonl       # 会话历史
 traces/*/last.json     # 最近一次执行轨迹
+credentials.json       # 凭证存储（API Key、Token）
 ```
 
 ## 学习路线建议

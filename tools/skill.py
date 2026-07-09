@@ -58,6 +58,55 @@ async def list_skills() -> str:
     return "可用技能：\n" + "\n".join(f"  - {s}" for s in available)
 
 
+async def learn_skill(url: str, name: str | None = None) -> str:
+    """从 URL 下载一个 .md 技能文档并保存到 skills/ 目录。
+
+    Args:
+        url: 技能文档的下载链接
+        name: 可选，技能名称（不含 .md）。不传则从 URL 自动推导。
+    """
+    if _SKILLS_DIR is None:
+        return "错误：Skill 系统未初始化"
+
+    # 下载
+    try:
+        import httpx
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            content = resp.text
+    except Exception as e:
+        return f"下载失败：{e}"
+
+    if not content.strip():
+        return "错误：下载的内容为空"
+
+    # 确定文件名
+    if name:
+        safe_name = name.replace("..", "").replace("/", "").replace("\\", "")
+    else:
+        # 从 URL 文件名或 frontmatter 的 name 字段推导
+        import re
+        m = re.search(r'^name:\s*(.+)$', content, re.MULTILINE)
+        if m:
+            safe_name = m.group(1).strip()
+        else:
+            base = url.rstrip("/").split("/")[-1]
+            safe_name = base.replace(".md", "").replace("..", "")
+
+    safe_name = safe_name.replace(" ", "-").replace("..", "").replace("/", "")
+    path = os.path.join(_SKILLS_DIR, f"{safe_name}.md")
+
+    # 写入
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    except Exception as e:
+        return f"写入技能文件失败：{e}"
+
+    return f"✓ 已学习新技能 '{safe_name}'（{len(content)} 字符）\n路径：{path}"
+
+
 def _list_skills() -> list[str]:
     """扫描 skills/ 目录下的 .md 文件"""
     try:
@@ -96,4 +145,18 @@ list_skills_tool = Tool(
         "properties": {},
     },
     fn=list_skills,
+)
+
+learn_skill_tool = Tool(
+    name="learn_skill",
+    description="从 URL 下载一个 .md 技能文档并保存到 skills/ 目录。通过此工具可以从网络学习新能力。参数 name 可选，不传则自动从 URL 或文档内容推断。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "description": "技能 .md 文件的下载链接"},
+            "name": {"type": "string", "description": "可选，技能名称（不含 .md）"},
+        },
+        "required": ["url"],
+    },
+    fn=learn_skill,
 )
