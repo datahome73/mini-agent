@@ -10,6 +10,7 @@
 - **Telegram 优先**：日常使用通过 Telegram Bot 聊天
 - **CLI 保留**：用于本地调试和后续扩展
 - **工具调用**：文件读写、Web 抓取/搜索、HTTP 请求、Shell 命令、记忆读写
+- **上下文预算管理**：自动按 Token 预算分配系统提示、工具描述、会话历史的空间，超限自动截断旧消息
 - **技能系统**：`skills/` 目录下的 .md 文档即技能，agent 用 `load_skill` / `list_skills` 自学，用 `learn_skill` 从网络下载新技能
 - **凭证管理**：安全存储 API Key、Token，不污染长期记忆
 - **MCP 工具**：通过标准 MCP 协议连接外部工具服务器，零代码扩展工具集
@@ -51,6 +52,7 @@ mini-agent/
 |-- memory/
 |   |-- session.py        # 短期会话历史
 |   |-- long_term.py      # 长期记忆和角色身份
+|   |-- context_manager.py # 上下文预算管理（Token 分配/截断）
 |   |-- trace.py          # Agent 执行轨迹
 |-- plugins/
 |   |-- example/          # 示例插件
@@ -74,6 +76,12 @@ mini-agent/
 | `WORKSPACE_DIR` | 否 | 数据目录，默认 `/app/data` |
 | `MAX_TOOL_ITERATIONS` | 否 | 最大工具调用轮数，默认 `10` |
 | `SESSION_HISTORY_SIZE` | 否 | 每次带入的最近消息数，默认 `20` |
+| `CONTEXT_MAX_TOKENS` | 否 | 上下文总预算，默认 `32768` |
+| `CONTEXT_SYSTEM_MAX_TOKENS` | 否 | 系统提示+记忆预算，默认 `4096` |
+| `CONTEXT_TOOLS_MAX_TOKENS` | 否 | 工具描述预算，默认 `4096` |
+| `CONTEXT_HISTORY_MAX_TOKENS` | 否 | 会话历史预算，默认 `24576` |
+| `CONTEXT_MIN_HISTORY` | 否 | 最少保留的历史消息数，默认 `2` |
+| `CONTEXT_MAX_HISTORY` | 否 | 最多保留的历史消息数，默认 `100` |
 | `CRON_ENABLED` | 否 | 是否开启定时任务 |
 | `CRON_INTERVAL` | 否 | 定时任务间隔，例如 `1d`、`2h`、`30m` |
 | `CRON_PROMPT` | 否 | 定时任务发给 Agent 的提示词 |
@@ -108,7 +116,9 @@ python main.py cli
 
 输入 `/quit` 退出。
 
-## Trace 调试
+## Trace 调试 + 上下文统计
+
+### /trace — 执行轨迹
 
 Trace 用来观察 Agent 每一轮到底做了什么。它会记录：
 
@@ -136,10 +146,43 @@ Trace 文件会写入工作目录：
 
 `last.json` 始终指向这个会话最近一次运行，带时间戳的 JSON 用于长期排查和教学回放。
 
-## 架构理解
+### /stats — 上下文使用报告
+
+显示最近一次 Agent 处理的 Token 预算分配情况：
 
 ```text
-用户消息
+📊 上下文使用报告
+总计: 4520 / 32768 token (13%)
+  ├ 身份+记忆: 680
+  ├ 工具描述:  2100
+  ├ 会话历史:  1200 (6 条消息)
+  └ 当前输入:  540
+```
+
+在 Telegram 或 CLI 中输入 `/stats` 即可查看。如果上下文使用超过 90%，说明长对话中的旧消息可能会被自动截断。
+
+## 上下文预算管理（Context Manager）
+
+ContextManager 负责在每次 Agent 处理消息时，按 Token 预算分配各部分的上下文空间。它是 Agent 稳定运行长对话的关键——没有它，旧会话消息会无限膨胀消耗 Token。
+
+### 预算结构
+
+系统将上下文分为 4 个分区，各有独立预算：
+
+| 分区 | 默认预算 | 内容 |
+|------|----------|------|
+| 身份+记忆 | 4096 token | 角色身份设定 + 长期记忆 |
+| 工具描述 | 4096 token | 所有工具的 description 和参数 schema |
+| 会话历史 | 24576 token | 最近 N 轮对话历史 |
+| 当前输入 | 自动 | 当前用户消息 |
+
+总预算默认 32768 token（可通过 `CONTEXT_MAX_TOKENS` 调整）。超预算时从**最旧的会话消息**开始丢弃，确保最近的对话始终保留。
+
+### 查看预算使用
+
+Telegram 或 CLI 中输入 `/stats` 查看当前分配情况。
+
+## 架构理解
   |
   v
 Channel(telegram/cli)
@@ -310,5 +353,5 @@ credentials.json       # 凭证存储（API Key、Token）
 1. 先读 `bus.py`，理解消息结构。
 2. 再读 `agent_core.py`，理解 Agent 的 LLM <-> Tool 循环。
 3. 然后读 `tools/`，理解工具如何暴露给模型（特别是 `tools/skill.py` 的技能系统）。
-4. 接着读 `memory/`，理解短期记忆、长期记忆和 trace。
+4. 接着读 `memory/`，理解短期记忆、长期记忆、`context_manager.py` 的 Token 预算管理、`trace.py` 的执行轨迹。
 5. 最后读 `channels/telegram.py`，理解真实用户入口如何接入 Agent。
