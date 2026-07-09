@@ -113,6 +113,15 @@ class AgentCore:
         tools_desc = self.tools.describe()
         tool_schemas = self.tools.get_schemas()
 
+        # 如果 load_skill 工具可用，在身份提示中加一条提示
+        if self.tools.get("load_skill"):
+            identity_text += (
+                "\n\n## 技能系统（Skill）\n"
+                "你有 load_skill 和 list_skills 工具，可以读取 skills/ 目录下的技能文档来学习新能力。\n"
+                "遇到不熟悉的任务或流程时，先用 list_skills 看看有没有对应的技能，\n"
+                "再用 load_skill 加载学习。\n"
+            )
+
         messages, report = self.context_manager.build_context(
             identity_text=identity_text,
             memory_text=memory_text,
