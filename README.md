@@ -10,6 +10,7 @@
 - **Telegram 优先**：日常使用通过 Telegram Bot 聊天
 - **CLI 保留**：用于本地调试和后续扩展
 - **工具调用**：文件读写、Web 抓取/搜索、HTTP 请求、Shell 命令、记忆读写
+- **技能系统**：`skills/` 目录下的 .md 文档即技能，agent 用 `load_skill` / `list_skills` 自学新能力
 - **记忆体系**：JSONL 会话历史 + Markdown 长期记忆
 - **插件系统**：在 `plugins/` 下新增插件即可扩展工具
 - **Trace 调试**：通过 `/trace` 查看最近一次 Agent 执行轨迹
@@ -19,36 +20,39 @@
 
 ```text
 mini-agent/
-+-- main.py               # 入口
-+-- config.py             # 环境变量配置
-+-- bus.py                # 消息定义
-+-- agent_core.py         # Agent 核心循环
-+-- plugin_loader.py      # 插件加载器
-+-- channels/
-|   +-- base.py           # 渠道抽象
-|   +-- cli.py            # CLI 渠道
-|   +-- telegram.py       # Telegram Bot 渠道
-+-- provider/
-|   +-- deepseek.py       # 模型接口封装
-+-- tools/
-|   +-- base.py           # 工具基类
-|   +-- registry.py       # 工具注册表
-|   +-- filesystem.py     # 文件工具
-|   +-- http.py           # HTTP 请求工具
-|   +-- web.py            # Web 抓取/搜索工具
-|   +-- shell.py          # Shell 工具
-|   +-- memory_tool.py    # 长期记忆工具
-+-- memory/
-|   +-- session.py        # 短期会话历史
-|   +-- long_term.py      # 长期记忆和角色身份
-|   +-- trace.py          # Agent 执行轨迹
-+-- plugins/
-|   +-- example/          # 示例插件
-+-- security/
-|   +-- workspace.py      # 工作目录路径沙箱
-+-- Dockerfile
-+-- docker-compose.yml
-+-- requirements.txt
+|-- main.py               # 入口
+|-- config.py             # 环境变量配置
+|-- bus.py                # 消息定义
+|-- agent_core.py         # Agent 核心循环
+|-- plugin_loader.py      # 插件加载器
+|-- channels/
+|   |-- base.py           # 渠道抽象
+|   |-- cli.py            # CLI 渠道
+|   |-- telegram.py       # Telegram Bot 渠道
+|-- provider/
+|   |-- deepseek.py       # 模型接口封装
+|-- tools/
+|   |-- base.py           # 工具基类
+|   |-- registry.py       # 工具注册表
+|   |-- filesystem.py     # 文件工具
+|   |-- http.py           # HTTP 请求工具
+|   |-- web.py            # Web 抓取/搜索工具
+|   |-- shell.py          # Shell 工具
+|   |-- memory_tool.py    # 长期记忆工具
+|   |-- skill.py          # 技能文档读取工具
+|-- skills/
+|   |-- joke-teller.md    # 示例技能：讲笑话
+|-- memory/
+|   |-- session.py        # 短期会话历史
+|   |-- long_term.py      # 长期记忆和角色身份
+|   |-- trace.py          # Agent 执行轨迹
+|-- plugins/
+|   |-- example/          # 示例插件
+|-- security/
+|   |-- workspace.py      # 工作目录路径沙箱
+|-- Dockerfile
+|-- docker-compose.yml
+|-- requirements.txt
 ```
 
 ## 配置
@@ -186,6 +190,34 @@ class Plugin:
 
 启动时，`PluginLoader` 会自动扫描 `plugins/`，加载插件并注册工具。
 
+## 技能系统（Skill）
+
+技能系统让 Agent 能读取 `skills/` 下的 .md 文档来学习新能力——不再需要修改代码。
+
+```python
+list_skills()        # → 列出所有可用技能
+load_skill("name")   # → 读取 skills/name.md 返回完整内容
+```
+
+Agent 在启动时被告知"遇到不熟悉的任务，先用 `list_skills` 看看有没有对应技能，再用 `load_skill` 学习"。每个 skill 是纯 Markdown，带 YAML frontmatter：
+
+```markdown
+---
+name: joke-teller
+description: "讲笑话 — 用户说'讲个笑话'时用"
+---
+
+# 讲笑话
+
+当用户让你讲笑话时，从下面的列表中选一个回复。
+
+1. 为什么程序员总是分不清万圣节和圣诞节？
+   因为 Oct 31 == Dec 25。
+...
+```
+
+后续可以用 `learn_skill(url)` 从网络下载 skill 文件，实现持续进化。
+
 ## 数据文件
 
 运行后，`WORKSPACE_DIR` 下会生成：
@@ -201,6 +233,6 @@ traces/*/last.json     # 最近一次执行轨迹
 
 1. 先读 `bus.py`，理解消息结构。
 2. 再读 `agent_core.py`，理解 Agent 的 LLM <-> Tool 循环。
-3. 然后读 `tools/`，理解工具如何暴露给模型。
+3. 然后读 `tools/`，理解工具如何暴露给模型（特别是 `tools/skill.py` 的技能系统）。
 4. 接着读 `memory/`，理解短期记忆、长期记忆和 trace。
 5. 最后读 `channels/telegram.py`，理解真实用户入口如何接入 Agent。
