@@ -18,6 +18,8 @@ from tools.shell import shell_tool
 from tools.http import http_request_tool
 from tools.memory_tool import init as init_memory_tools, read_memory_tool, remember_tool
 from tools.skill import init as init_skill_tools, load_skill_tool, list_skills_tool
+from tools.mcp_tool import build_mcp_tools
+from mcp_client.manager import MCPManager
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
 from memory.trace import TraceStore
@@ -36,7 +38,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def build_agent(cfg: Config) -> AgentCore:
+def build_agent(cfg: Config, mcp_manager: MCPManager | None = None) -> AgentCore:
     """组装 Agent 核心"""
     provider = DeepSeekProvider(
         api_key=cfg.api_key,
@@ -84,6 +86,12 @@ def build_agent(cfg: Config) -> AgentCore:
         for p in loaded_plugins:
             logger.info('  ✓ %s: %s', p.name, p.description)
 
+    # 注册 MCP 工具（如果有）
+    if mcp_manager and mcp_manager._active_tools:
+        for t in build_mcp_tools(mcp_manager):
+            registry.register(t)
+            logger.info('  ✓ MCP %s', t.name)
+
     context_config = ContextConfig(
         max_total_tokens=cfg.context_max_total_tokens,
         system_max_tokens=cfg.context_system_max_tokens,
@@ -109,7 +117,9 @@ def build_agent(cfg: Config) -> AgentCore:
 
 async def run_cli(cfg: Config):
     """CLI 模式 — 流式输出"""
-    agent = build_agent(cfg)
+    mcp_manager = MCPManager(config_path=cfg.mcp_config_path)
+    await mcp_manager.load_all()
+    agent = build_agent(cfg, mcp_manager=mcp_manager)
     channel = CLIChannel(agent=agent)
 
     if cfg.cron_enabled:
@@ -127,7 +137,9 @@ async def run_cli(cfg: Config):
 
 async def run_telegram(cfg: Config):
     """Telegram 模式 — 流式输出（编辑消息模拟打字机）"""
-    agent = build_agent(cfg)
+    mcp_manager = MCPManager(config_path=cfg.mcp_config_path)
+    await mcp_manager.load_all()
+    agent = build_agent(cfg, mcp_manager=mcp_manager)
     channel = TelegramChannel(token=cfg.telegram_token, agent=agent)
 
     if cfg.cron_enabled:

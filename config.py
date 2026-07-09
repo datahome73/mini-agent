@@ -38,6 +38,9 @@ class Config:
     cron_prompt: str = "心跳检测：回复当前状态和一句'我还活着'"
     cron_chat_id: str = ""
 
+    # MCP 配置
+    mcp_config_path: str = "mcp_client/servers.json"
+
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
