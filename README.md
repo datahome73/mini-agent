@@ -11,6 +11,7 @@
 - **CLI 保留**：用于本地调试和后续扩展
 - **工具调用**：文件读写、Web 抓取/搜索、HTTP 请求、Shell 命令、记忆读写
 - **技能系统**：`skills/` 目录下的 .md 文档即技能，agent 用 `load_skill` / `list_skills` 自学新能力
+- **MCP 工具**：通过标准 MCP 协议连接外部工具服务器，零代码扩展工具集
 - **记忆体系**：JSONL 会话历史 + Markdown 长期记忆
 - **插件系统**：在 `plugins/` 下新增插件即可扩展工具
 - **Trace 调试**：通过 `/trace` 查看最近一次 Agent 执行轨迹
@@ -42,6 +43,9 @@ mini-agent/
 |   |-- skill.py          # 技能文档读取工具
 |-- skills/
 |   |-- joke-teller.md    # 示例技能：讲笑话
+|-- mcp_client/
+|   |-- manager.py        # MCP 客户端管理器
+|   |-- servers.json      # MCP Server 配置
 |-- memory/
 |   |-- session.py        # 短期会话历史
 |   |-- long_term.py      # 长期记忆和角色身份
@@ -217,6 +221,47 @@ description: "讲笑话 — 用户说'讲个笑话'时用"
 ```
 
 后续可以用 `learn_skill(url)` 从网络下载 skill 文件，实现持续进化。
+
+## MCP 工具系统
+
+MCP（Model Context Protocol）是开放的 AI 工具协议。mini-agent 通过 `mcp_client/` 连接外部 MCP Server，把它们的工具注册到 `ToolRegistry` 中——**不改代码，加配置就行**。
+
+### 配置方式
+
+编辑 `mcp_client/servers.json`，添加想用的 MCP Server：
+
+```json
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    {
+      "name": "github",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_TOKEN": "xxx" }
+    }
+  ]
+}
+```
+
+### 工作原理
+
+```
+启动时读取 servers.json
+  → 每个 server 启动子进程（stdio）
+  → MCP 协议握手，获取工具列表
+  → 包装成 mcp_{server}_{tool} 格式
+  → 注册到 ToolRegistry
+  → Agent 直接用
+```
+
+### 效果
+
+配置一个 filesystem server 就获得 14 个文件操作工具（read_file、write_file、search_files 等），配 GitHub server 就获得仓库/PR/Issue 全套工具。已有 1000+ 社区 MCP Server 可用。
 
 ## 数据文件
 
