@@ -133,6 +133,7 @@ async def run_cli(cfg: Config):
         asyncio.create_task(scheduler.run())
 
     await channel.start()
+    await mcp_manager.shutdown()
 
 
 async def run_telegram(cfg: Config):
@@ -153,6 +154,7 @@ async def run_telegram(cfg: Config):
         asyncio.create_task(scheduler.run())
 
     await channel.start()
+    await mcp_manager.shutdown()
 
 
 def main():

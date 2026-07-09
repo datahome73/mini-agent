@@ -87,16 +87,13 @@ class MCPServerConnection:
     async def disconnect(self):
         """断开连接，清理资源"""
         self._connected = False
-        try:
-            if self._session_ctx:
-                await self._session_ctx.__aexit__(None, None, None)
-        except Exception:
-            pass
-        try:
-            if self._stdio_ctx:
-                await self._stdio_ctx.__aexit__(None, None, None)
-        except Exception:
-            pass
+        # 清理 MCP 上下文（如果 event loop 正在关闭，__aexit__ 可能抛 RuntimeError）
+        for ctx in [self._session_ctx, self._stdio_ctx]:
+            if ctx is not None:
+                try:
+                    await ctx.__aexit__(None, None, None)
+                except (RuntimeError, Exception):
+                    pass
         self.session = None
         self._session_ctx = None
         self._stdio_ctx = None
