@@ -19,6 +19,7 @@ from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
 from memory.trace import TraceStore
 from memory.context_manager import ContextManager, ContextReport
+from tools import plan as plan_tools
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,24 @@ class AgentCore:
                 "遇到不熟悉的任务或流程时，先用 list_skills 看看有没有对应的技能，\n"
                 "再用 load_skill 加载学习。\n"
             )
+
+        # 如果规划工具可用，注入规划/执行提示
+        if self.tools.get("create_plan"):
+            identity_text += (
+                "\n\n## 多步规划（Plan/Execute）\n"
+                "对于需要多个步骤的复杂任务，请使用规划工具创建工作流：\n"
+                "1. **create_plan** — 先列出执行步骤，不要直接动手。把目标写清楚，步骤列具体。\n"
+                "2. 按步骤逐个执行，每完成一步调用 **complete_step** 标记完成。\n"
+                "3. 如果中途发现遗漏或情况变化，用 **revise_plan** 插入新步骤。\n"
+                "4. 随时可用 **get_plan** 查看当前进度。\n"
+                "5. 全部步骤完成后，总结最终结果回复用户。\n"
+                "\n"
+                "注意：简单的单步工具调用不需要规划。只在需要 3+ 步且有依赖关系时使用。\n"
+            )
+
+            # 如果有活跃计划，在上下文中注入当前进度
+            if plan_tools.has_active_plan():
+                identity_text += f"\n### 当前计划进度\n{plan_tools.get_plan_summary()}\n"
 
         messages, report = self.context_manager.build_context(
             identity_text=identity_text,

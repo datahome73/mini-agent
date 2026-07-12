@@ -12,6 +12,7 @@
 - **工具调用**：文件读写、Web 抓取/搜索、HTTP 请求、Shell 命令、记忆读写
 - **上下文预算管理**：自动按 Token 预算分配系统提示、工具描述、会话历史的空间，超限自动截断旧消息
 - **技能系统**：`skills/` 目录下的 .md 文档即技能，agent 用 `load_skill` / `list_skills` 自学，用 `learn_skill` 从网络下载新技能
+- **多步规划**：复杂任务先 `create_plan` 列步骤，逐步推进，中途可 `revise_plan` 补充
 - **凭证管理**：安全存储 API Key、Token，不污染长期记忆
 - **MCP 工具**：通过标准 MCP 协议连接外部工具服务器，零代码扩展工具集
 - **记忆体系**：JSONL 会话历史 + Markdown 长期记忆
@@ -44,6 +45,7 @@ mini-agent/
 |   |-- memory_tool.py    # 长期记忆工具
 |   |-- skill.py          # 技能文档读取 + learn_skill
 |   |-- credential_tool.py # 凭证管理工具
+|   |-- plan.py           # 多步规划工具（Plan/Execute）
 |-- skills/
 |   |-- joke-teller.md    # 示例技能：讲笑话
 |-- mcp_client/
@@ -295,6 +297,39 @@ learn_skill("https://example.com/skills/meyo-registration.md", name="meyo-regist
 需要调用外部 API → agent 调用 get_credential 读取密钥 → 用 http_request 调用
 ```
 
+## 多步规划系统（Plan/Execute）
+
+对于需要多步骤的复杂任务（如调研分析、多步代码修改、报告撰写），Agent 通过规划工具让执行过程可追踪、可调整。
+
+### 工作流程
+
+```
+收到复杂请求
+  → create_plan 列出步骤
+  → 按顺序执行第 1 步 → complete_step #1
+  → 执行第 2 步 → complete_step #2
+  → （可选）revise_plan 发现遗漏，插入新步骤
+  → 继续执行 → complete_step ...
+  → 全部完成，总结回复用户
+```
+
+### 工具
+
+| 工具 | 功能 |
+|------|------|
+| `create_plan(goal, steps)` | 创建多步计划，自动激活第一步 |
+| `complete_step(step_id, summary)` | 标记某步完成，自动激活下一步 |
+| `revise_plan(after_step_id, new_steps)` | 在指定步骤后插入新步骤 |
+| `get_plan()` | 查看当前计划的完整进度 |
+
+### 设计原则
+
+- **简单任务跳过**：单步工具调用不需要规划，只在 3+ 步且有依赖关系时使用
+- **进度自动推进**：`complete_step` 自动激活下一步，LLM 无需手动设置下一步
+- **计划在上下文中**：每一步的完成状态通过工具调用结果返回对话，LLM 自然可见
+- **Trace 可见**：`/trace` 中显示计划进度摘要
+- **中途可调整**：`revise_plan` 让 LLM 能灵活应对执行途中的新发现
+
 ## MCP 工具系统
 
 MCP（Model Context Protocol）是开放的 AI 工具协议。mini-agent 通过 `mcp_client/` 连接外部 MCP Server，把它们的工具注册到 `ToolRegistry` 中——**不改代码，加配置就行**。
@@ -352,6 +387,6 @@ credentials.json       # 凭证存储（API Key、Token）
 
 1. 先读 `bus.py`，理解消息结构。
 2. 再读 `agent_core.py`，理解 Agent 的 LLM <-> Tool 循环。
-3. 然后读 `tools/`，理解工具如何暴露给模型（特别是 `tools/skill.py` 的技能系统）。
+3. 然后读 `tools/`，理解工具如何暴露给模型（特别是 `tools/skill.py` 的技能系统和 `tools/plan.py` 的规划系统）。
 4. 接着读 `memory/`，理解短期记忆、长期记忆、`context_manager.py` 的 Token 预算管理、`trace.py` 的执行轨迹。
 5. 最后读 `channels/telegram.py`，理解真实用户入口如何接入 Agent。

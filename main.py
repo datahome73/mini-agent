@@ -25,6 +25,13 @@ from tools.credential_tool import (
     list_credentials_tool,
     delete_credential_tool,
 )
+from tools.plan import (
+    create_plan_tool,
+    complete_step_tool,
+    revise_plan_tool,
+    get_plan_tool,
+    init_plan_tools,
+)
 from tools.mcp_tool import build_mcp_tools
 from mcp_client.manager import MCPManager
 from memory.session import SessionMemory
@@ -72,6 +79,10 @@ def build_agent(cfg: Config, mcp_manager: MCPManager | None = None) -> AgentCore
     registry.register(get_credential_tool)
     registry.register(list_credentials_tool)
     registry.register(delete_credential_tool)
+    registry.register(create_plan_tool)
+    registry.register(complete_step_tool)
+    registry.register(revise_plan_tool)
+    registry.register(get_plan_tool)
 
     session_memory = SessionMemory(cfg.workspace_dir)
     long_term_memory = LongTermMemory(cfg.workspace_dir)
@@ -80,6 +91,7 @@ def build_agent(cfg: Config, mcp_manager: MCPManager | None = None) -> AgentCore
     init_memory_tools(long_term_memory)
     init_skill_tools("skills")
     init_credential_tools(cfg.workspace_dir)
+    init_plan_tools()
 
     # 加载第三方插件
     context = {

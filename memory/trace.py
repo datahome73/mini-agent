@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from tools import plan as plan_tools
+
 
 class TraceStore:
     """Persist and render Agent execution traces."""
@@ -60,6 +62,11 @@ class TraceStore:
 
         if trace.get("error"):
             lines.append(f"- 错误: {self._one_line(trace['error'], 300)}")
+
+        # 计划信息
+        plan_summary = trace.get("plan_summary") or plan_tools.get_plan_summary()
+        if plan_summary:
+            lines.append(f"- 计划: {plan_summary}")
 
         for item in trace.get("iterations", []):
             lines.append("")
