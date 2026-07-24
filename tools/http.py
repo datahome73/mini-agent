@@ -128,4 +128,5 @@ http_request_tool = Tool(
         "required": ["method", "url"],
     },
     fn=http_request,
+    requires_confirmation=lambda args: args.get("method", "GET") in ("POST", "PUT", "DELETE", "PATCH"),
 )

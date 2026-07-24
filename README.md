@@ -9,6 +9,7 @@
 - **清晰分层**：Channel -> Bus -> AgentCore -> Provider + Tools
 - **Telegram 优先**：日常使用通过 Telegram Bot 聊天
 - **CLI 保留**：用于本地调试和后续扩展
+- **人工审批流**：敏感操作（shell 命令、文件写入、POST/PUT/DELETE 请求）需用户确认才能执行，防止误操作
 - **工具调用**：文件读写、Web 抓取/搜索、HTTP 请求、Shell 命令、记忆读写
 - **上下文预算管理**：自动按 Token 预算分配系统提示、工具描述、会话历史的空间，超限自动截断旧消息
 - **技能系统**：`skills/` 目录下的 .md 文档即技能，agent 用 `load_skill` / `list_skills` 自学，用 `learn_skill` 从网络下载新技能
@@ -36,8 +37,9 @@ mini-agent/
 |-- provider/
 |   |-- deepseek.py       # 模型接口封装
 |-- tools/
-|   |-- base.py           # 工具基类
+|   |-- base.py           # 工具基类（含人工确认标记）
 |   |-- registry.py       # 工具注册表
+|   |-- confirm.py        # 人工审批流（Human-in-the-Loop）
 |   |-- filesystem.py     # 文件工具
 |   |-- http.py           # HTTP 请求工具
 |   |-- web.py            # Web 抓取/搜索工具
@@ -207,6 +209,68 @@ OutboundMessage
   |
   v
 Telegram / CLI 回复用户
+```
+
+## 人工审批流（Human-in-the-Loop）
+
+某些操作有潜在安全风险，Agent 不能擅自执行——需要先停住、问用户、等批准。
+
+### 敏感工具
+
+| 工具 | 触发条件 |
+|------|---------|
+| `run_command` | 任何命令 |
+| `write_file` | 任何文件写入 |
+| `http_request` | POST / PUT / DELETE / PATCH |
+
+### 工作流程
+
+```
+用户: "帮我删除 /tmp/test.txt"
+  ↓
+Agent 检测到 run_command 是敏感工具
+  ↓
+⏸️ 挂起操作 → 返回确认提示
+  ↓
+用户: "是"
+  ↓
+▶️ 执行 run_command → 结果喂回 LLM → 生成最终回复
+```
+
+### 交互效果
+
+当 Agent 调用敏感工具时，不直接执行，而是回复确认提示：
+
+> ⚠️ **需要你确认这个操作：**
+>
+> 工具：`run_command`
+> 参数：`cmd=rm /tmp/test.txt`
+>
+> 回复「**是**」确认执行，或「**否**」取消。
+
+用户回复「是」后，Agent 执行该操作并继续完成后续逻辑。回复「否」则取消操作。
+
+### 设计要点
+
+- **会话级隔离**：不同聊天会话的挂起状态互不干扰
+- **循环嵌套**：审批通过后如果 LLM 又调用了其他敏感工具，会再次触发确认
+- **语义解析**：支持中英文确认/否定词（是/否/yes/no/确认执行/取消 等）
+- **正常恢复**：确认操作后，消息上下文完整保留，LLM 自然延续之前的思路
+- **双重路径**：非流式和流式（CLI / Telegram）都支持
+
+### 扩展
+
+如果需要自定义敏感规则，修改工具的 `requires_confirmation` 字段即可：
+
+```python
+# 整个工具标记为敏感
+shell_tool = Tool(..., requires_confirmation=True)
+
+# 按参数动态判断
+http_request_tool = Tool(
+    ...,
+    requires_confirmation=lambda args: args.get("method", "GET") in ("POST", "PUT", "DELETE"),
+)
 ```
 
 ## 工具系统
@@ -386,7 +450,7 @@ credentials.json       # 凭证存储（API Key、Token）
 ## 学习路线建议
 
 1. 先读 `bus.py`，理解消息结构。
-2. 再读 `agent_core.py`，理解 Agent 的 LLM <-> Tool 循环。
-3. 然后读 `tools/`，理解工具如何暴露给模型（特别是 `tools/skill.py` 的技能系统和 `tools/plan.py` 的规划系统）。
+2. 再读 `agent_core.py`，理解 Agent 的 LLM <-> Tool 循环（特别是审批流的挂起/恢复逻辑）。
+3. 然后读 `tools/`，理解工具如何暴露给模型（特别是 `tools/base.py` 的确认标记、`tools/confirm.py` 的审批管理器、`tools/skill.py` 的技能系统和 `tools/plan.py` 的规划系统）。
 4. 接着读 `memory/`，理解短期记忆、长期记忆、`context_manager.py` 的 Token 预算管理、`trace.py` 的执行轨迹。
 5. 最后读 `channels/telegram.py`，理解真实用户入口如何接入 Agent。

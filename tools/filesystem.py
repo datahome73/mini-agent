@@ -116,6 +116,7 @@ write_file_tool = Tool(
         "required": ["path", "content"],
     },
     fn=write_file,
+    requires_confirmation=True,
 )
 
 search_tool = Tool(

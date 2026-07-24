@@ -33,6 +33,7 @@ from tools.plan import (
     init_plan_tools,
 )
 from tools.mcp_tool import build_mcp_tools
+from tools.confirm import ConfirmManager
 from mcp_client.manager import MCPManager
 from memory.session import SessionMemory
 from memory.long_term import LongTermMemory
@@ -126,12 +127,14 @@ def build_agent(cfg: Config, mcp_manager: MCPManager | None = None) -> AgentCore
         max_history_messages=cfg.context_max_history_messages,
     )
     context_manager = ContextManager(config=context_config)
+    confirm_manager = ConfirmManager()
 
     agent = AgentCore(
         provider=provider,
         tool_registry=registry,
         session_memory=session_memory,
         long_term_memory=long_term_memory,
+        confirm_manager=confirm_manager,
         trace_store=trace_store,
         context_manager=context_manager,
         max_tool_iterations=cfg.max_tool_iterations,

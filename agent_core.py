@@ -3,7 +3,7 @@ Agent 核心 — Loop + Runner 合二为一。
 
 流程：
   收到消息 → 加载身份/记忆/会话 → 组装上下文 → 调 LLM
-  → 如果有工具调用 → 逐个执行 → 结果喂回 LLM → 重复
+  → 如果有工具调用 → 逐个执行（敏感工具需人工确认）→ 结果喂回 LLM → 重复
   → 最终回复 → 存入会话 → 返回
 
 也支持流式输出（process_message_stream），逐 token yield 文本片段。
@@ -20,6 +20,7 @@ from memory.long_term import LongTermMemory
 from memory.trace import TraceStore
 from memory.context_manager import ContextManager, ContextReport
 from tools import plan as plan_tools
+from tools.confirm import ConfirmManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class AgentCore:
         tool_registry: ToolRegistry,
         session_memory: SessionMemory,
         long_term_memory: LongTermMemory,
+        confirm_manager: ConfirmManager | None = None,
         trace_store: TraceStore | None = None,
         context_manager: ContextManager | None = None,
         max_tool_iterations: int = 10,
@@ -42,6 +44,7 @@ class AgentCore:
         self.tools = tool_registry
         self.sessions = session_memory
         self.ltm = long_term_memory
+        self.confirm_manager = confirm_manager or ConfirmManager()
         self.trace_store = trace_store
         self.context_manager = context_manager or ContextManager()
         self.max_tool_iterations = max_tool_iterations
@@ -141,6 +144,15 @@ class AgentCore:
             if plan_tools.has_active_plan():
                 identity_text += f"\n### 当前计划进度\n{plan_tools.get_plan_summary()}\n"
 
+        # 注入人工审批提示
+        identity_text += (
+            "\n\n## 人工确认机制\n"
+            "某些敏感操作（如执行 shell 命令、修改文件、发送 POST/PUT/DELETE 请求）"
+            "需要用户先确认才能执行。\n"
+            "当系统返回确认提示时，请等待用户回复「是」或「否」。\n"
+            "用户确认后系统会自动继续。不要替用户做决定。\n"
+        )
+
         messages, report = self.context_manager.build_context(
             identity_text=identity_text,
             memory_text=memory_text,
@@ -151,65 +163,109 @@ class AgentCore:
         self._last_context_report = report
         return messages
 
+    # ================================================================
+    #  共享 LLM 循环（_process 和 _handle_pending 都调用它）
+    # ================================================================
+
+    async def _run_llm_loop(
+        self,
+        messages: list,
+        tool_schemas: list,
+        session_id: str,
+        *,
+        iteration_base: int = 1,
+        trace: dict | None = None,
+    ) -> str:
+        """LLM ↔ 工具的核心迭代循环。
+
+        返回最终文本，或返回确认提示文本（此时挂起状态已存入 confirm_manager）。
+        """
+        for iteration in range(self.max_tool_iterations):
+            logger.info(f"Agent 迭代 {iteration_base + iteration}/{self.max_tool_iterations}")
+
+            result = self.provider.chat(
+                messages=messages,
+                tools=tool_schemas if tool_schemas else None,
+            )
+            trace_item = self._trace_iteration(trace, iteration_base + iteration, result)
+
+            if result["type"] == "text":
+                return result["content"] or "(空回复)"
+
+            tool_calls = result["content"]
+            reasoning = result.get("reasoning_content", "")
+
+            # 一个 assistant 消息包含本轮所有 tool_calls（保留 reasoning_content）
+            assistant_msg = {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": str(tc["args"]),
+                        },
+                    }
+                    for tc in tool_calls
+                ],
+            }
+            if reasoning:
+                assistant_msg["reasoning_content"] = reasoning
+            messages.append(assistant_msg)
+
+            for tc in tool_calls:
+                name = tc["name"]
+                args = tc["args"]
+                tool_id = tc["id"]
+
+                tool_obj = self.tools.get(name)
+                # ---- 敏感工具拦截 ----
+                if tool_obj and tool_obj.should_confirm(args):
+                    confirm_text = self.confirm_manager.request(
+                        session_id=session_id,
+                        tool_name=name,
+                        tool_args=args,
+                        tool_id=tool_id,
+                        messages=messages,
+                    )
+                    logger.info("  需确认: %s(%s) — 已挂起", name, args)
+                    return confirm_text
+
+                # 正常执行
+                logger.info("  调用工具: %s(%s)", name, args)
+                result_text = await self._execute_tool(name, args, tool_id)
+                self._trace_tool_result(trace_item, tc, result_text)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result_text[:3000],
+                })
+
+        return "抱歉，我思考了太久还没得出答案，请简化你的问题。"
+
+    # ================================================================
+    #  非流式处理
+    # ================================================================
+
     async def _process(self, msg: InboundMessage) -> str:
         """非流式核心处理逻辑"""
+
+        # ---- 阶段 0: 是否有待确认的操作？ ----
+        if self.confirm_manager.is_pending(msg.session_id):
+            return await self._handle_pending(msg)
+
+        # ---- 正常流程 ----
         messages = self._build_messages(msg)
         tool_schemas = self.tools.get_schemas()
         trace = TraceStore.new_trace(msg) if self.trace_store else None
+        trace_item = None
 
         try:
-            for iteration in range(self.max_tool_iterations):
-                logger.info(f"Agent 迭代 {iteration + 1}/{self.max_tool_iterations}")
-
-                result = self.provider.chat(
-                    messages=messages,
-                    tools=tool_schemas if tool_schemas else None,
-                )
-                trace_item = self._trace_iteration(trace, iteration + 1, result)
-
-                if result["type"] == "text":
-                    final_text = result["content"] or "(空回复)"
-                    if trace is not None:
-                        trace["final_answer"] = final_text
-                    return final_text
-
-                tool_calls = result["content"]
-                reasoning = result.get("reasoning_content", "")
-
-                # 一个 assistant 消息包含本轮所有 tool_calls（保留 reasoning_content）
-                assistant_msg = {
-                    "role": "assistant",
-                    "tool_calls": [
-                        {
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc["name"],
-                                "arguments": str(tc["args"]),
-                            },
-                        }
-                        for tc in tool_calls
-                    ],
-                }
-                if reasoning:
-                    assistant_msg["reasoning_content"] = reasoning
-                messages.append(assistant_msg)
-
-                for tc in tool_calls:
-                    name = tc["name"]
-                    args = tc["args"]
-                    tool_id = tc["id"]
-
-                    logger.info(f"  调用工具: {name}({args})")
-                    result_text = await self._execute_tool(name, args, tool_id)
-                    self._trace_tool_result(trace_item, tc, result_text)
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": result_text[:3000],
-                    })
-
-            final_text = "抱歉，我思考了太久还没得出答案，请简化你的问题。"
+            final_text = await self._run_llm_loop(
+                messages, tool_schemas, msg.session_id,
+                iteration_base=1, trace=trace,
+            )
             if trace is not None:
                 trace["final_answer"] = final_text
             return final_text
@@ -221,8 +277,62 @@ class AgentCore:
             if trace is not None:
                 self.trace_store.save(trace)
 
+    async def _handle_pending(self, msg: InboundMessage) -> str:
+        """处理用户对挂起操作的回复"""
+        result = self.confirm_manager.resolve(msg.session_id, msg.text)
+        if result is None:
+            # 语义不明，提示用「是/否」
+            question = self.confirm_manager.get_question(msg.session_id)
+            return f"{question}\n\n（请回复「**是**」确认执行，或「**否**」取消）"
+
+        pending = self.confirm_manager.pop(msg.session_id)
+        if pending is None:
+            logger.warning("pending 状态异常消失 [%s]", msg.session_id)
+            # 降级：重新走正常流程
+            messages = self._build_messages(msg)
+            tool_schemas = self.tools.get_schemas()
+            return await self._run_llm_loop(
+                messages, tool_schemas, msg.session_id,
+                iteration_base=1,
+            )
+
+        tool_schemas = self.tools.get_schemas()
+
+        if result == "approved":
+            logger.info("  执行已确认: %s(%s)", pending.tool_name, pending.tool_args)
+            result_text = await self._execute_tool(
+                pending.tool_name, pending.tool_args, pending.tool_id,
+            )
+        else:
+            logger.info("  用户已拒绝: %s(%s)", pending.tool_name, pending.tool_args)
+            result_text = "用户已拒绝此操作。请告知用户操作已被取消。"
+
+        # 注入工具结果，继续 LLM 循环
+        pending.messages.append({
+            "role": "tool",
+            "tool_call_id": pending.tool_id,
+            "content": result_text[:3000],
+        })
+
+        return await self._run_llm_loop(
+            pending.messages, tool_schemas, msg.session_id,
+            iteration_base=1,
+        )
+
+    # ================================================================
+    #  流式处理
+    # ================================================================
+
     async def _process_stream(self, msg: InboundMessage) -> AsyncGenerator[str, None]:
         """流式核心处理逻辑。yield 文本片段。"""
+
+        # ---- 阶段 0: 是否有待确认的操作？ ----
+        if self.confirm_manager.is_pending(msg.session_id):
+            result = await self._handle_pending(msg)
+            yield result
+            return
+
+        # ---- 正常流式流程 ----
         messages = self._build_messages(msg)
         tool_schemas = self.tools.get_schemas()
         trace = TraceStore.new_trace(msg) if self.trace_store else None
@@ -244,6 +354,7 @@ class AgentCore:
                 if trace is not None:
                     trace["iterations"].append(trace_item)
 
+                # 流式读取 LLM 回复
                 async for chunk in self.provider.chat_stream(
                     messages, tool_schemas if tool_schemas else None,
                 ):
@@ -262,10 +373,11 @@ class AgentCore:
                         trace["final_answer"] = final_text
                     return  # 纯文本，流式完成
 
+                # LLM 返回了工具调用
                 trace_item["result_type"] = "tool_calls"
                 tc_list = tool_calls_result
 
-                # 一个 assistant 消息包含本轮所有 tool_calls（保留 reasoning_content）
+                # 一个 assistant 消息包含本轮所有 tool_calls
                 assistant_msg = {
                     "role": "assistant",
                     "tool_calls": [
@@ -284,11 +396,38 @@ class AgentCore:
                     assistant_msg["reasoning_content"] = tool_calls_reasoning
                 messages.append(assistant_msg)
 
+                # ---- 检查是否有敏感工具 ----
+                sensitive_found = False
+                confirm_text = ""
+                for tc in tc_list:
+                    name = tc["name"]
+                    args = tc["args"]
+                    tool_obj = self.tools.get(name)
+                    if tool_obj and tool_obj.should_confirm(args):
+                        # 挂起第一个敏感工具，后续工具等这次确认完成后由 LLM 自行决定
+                        confirm_text = self.confirm_manager.request(
+                            session_id=msg.session_id,
+                            tool_name=name,
+                            tool_args=args,
+                            tool_id=tc["id"],
+                            messages=messages,
+                        )
+                        logger.info("  需确认: %s(%s) — 已挂起", name, args)
+                        yield confirm_text
+                        sensitive_found = True
+                        break
+
+                if sensitive_found:
+                    if trace is not None:
+                        trace["final_answer"] = final_text or confirm_text or "(待确认)"
+                    return  # 挂起，等待用户回复
+
+                # ---- 全部安全，正常执行 ----
                 for tc in tc_list:
                     name = tc["name"]
                     args = tc["args"]
                     tool_id = tc["id"]
-                    logger.info(f"  调用工具: {name}({args})")
+                    logger.info("  调用工具: %s(%s)", name, args)
                     result_text = await self._execute_tool(name, args, tool_id)
                     self._trace_tool_result(trace_item, tc, result_text)
                     messages.append({
@@ -310,6 +449,10 @@ class AgentCore:
                 if final_text and not trace.get("final_answer"):
                     trace["final_answer"] = final_text
                 self.trace_store.save(trace)
+
+    # ================================================================
+    #  工具执行与 Trace
+    # ================================================================
 
     async def _execute_tool(self, name: str, args: dict, tool_id: str) -> str:
         """执行单个工具调用，返回结果文本"""

@@ -77,4 +77,5 @@ shell_tool = Tool(
         "required": ["command"],
     },
     fn=run_command,
+    requires_confirmation=True,
 )

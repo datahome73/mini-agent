@@ -12,6 +12,7 @@ class Tool:
     description: str
     parameters: dict  # JSON Schema
     fn: Callable[..., Coroutine[Any, Any, str] | str]
+    requires_confirmation: bool | Callable[[dict], bool] = False
 
     def to_openai_schema(self) -> dict:
         """转为 OpenAI function calling 格式"""
@@ -23,3 +24,9 @@ class Tool:
                 "parameters": self.parameters,
             },
         }
+
+    def should_confirm(self, args: dict) -> bool:
+        """判断给定参数是否需要人工确认"""
+        if callable(self.requires_confirmation):
+            return self.requires_confirmation(args)
+        return self.requires_confirmation
