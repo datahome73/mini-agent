@@ -45,6 +45,35 @@ class CLIChannel(BaseChannel):
                 else:
                     print("\nAgent 未启用。\n")
                 continue
+            if text == "/confirm_status":
+                if self.agent:
+                    if self.agent.confirm_manager.is_pending("cli-default"):
+                        q = self.agent.confirm_manager.get_question("cli-default")
+                        print(f"\n⏳ 有待确认的操作\n\n{q}\n")
+                    else:
+                        print("\n✅ 当前无待确认操作\n")
+                else:
+                    print("\nAgent 未启用。\n")
+                continue
+            if text == "/confirm_reset":
+                if self.agent:
+                    if self.agent.confirm_manager.is_pending("cli-default"):
+                        self.agent.confirm_manager.cancel("cli-default")
+                        print("\n✅ 已清除待确认操作\n")
+                    else:
+                        print("\n✅ 当前无待确认操作，无需清除\n")
+                else:
+                    print("\nAgent 未启用。\n")
+                continue
+            if text == "/quit":
+                print("再见！")
+                break
+            if text == "/trace":
+                if self.agent:
+                    print("\n" + self.agent.format_last_trace("cli-default") + "\n")
+                else:
+                    print("\nAgent 未启用，无法查看 trace。\n")
+                continue
 
             inbound = InboundMessage(
                 channel="cli",

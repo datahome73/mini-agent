@@ -31,6 +31,8 @@ class TelegramChannel(BaseChannel):
         self._app = Application.builder().token(self._token).build()
         self._app.add_handler(CommandHandler("trace", self._handle_trace))
         self._app.add_handler(CommandHandler("stats", self._handle_stats))
+        self._app.add_handler(CommandHandler("confirm_status", self._handle_confirm_status))
+        self._app.add_handler(CommandHandler("confirm_reset", self._handle_confirm_reset))
         self._app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_update)
         )
@@ -113,6 +115,34 @@ class TelegramChannel(BaseChannel):
             return
         text = self._agent.format_context_report()
         await update.message.reply_text(text)
+
+    async def _handle_confirm_status(self, update: Update, _context):
+        """查看当前是否有待确认的操作"""
+        if not update.message or not self._agent:
+            return
+        chat_id = str(update.effective_chat.id)
+        user_id = str(update.effective_user.id) if update.effective_user else chat_id
+        session_id = f"telegram:{chat_id}:{user_id}"
+        if self._agent.confirm_manager.is_pending(session_id):
+            question = self._agent.confirm_manager.get_question(session_id)
+            await update.message.reply_text(
+                f"⏳ **有待确认的操作**\n\n{question}"
+            )
+        else:
+            await update.message.reply_text("✅ 当前无待确认操作")
+
+    async def _handle_confirm_reset(self, update: Update, _context):
+        """强制清除待确认状态"""
+        if not update.message or not self._agent:
+            return
+        chat_id = str(update.effective_chat.id)
+        user_id = str(update.effective_user.id) if update.effective_user else chat_id
+        session_id = f"telegram:{chat_id}:{user_id}"
+        if self._agent.confirm_manager.is_pending(session_id):
+            self._agent.confirm_manager.cancel(session_id)
+            await update.message.reply_text("✅ 已清除待确认操作")
+        else:
+            await update.message.reply_text("✅ 当前无待确认操作，无需清除")
 
     async def _handle_trace(self, update: Update, _context):
         if not update.message:

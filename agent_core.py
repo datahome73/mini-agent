@@ -279,7 +279,12 @@ class AgentCore:
 
     async def _handle_pending(self, msg: InboundMessage) -> str:
         """处理用户对挂起操作的回复"""
-        result = self.confirm_manager.resolve(msg.session_id, msg.text)
+        pending_session_id = msg.session_id
+        result = self.confirm_manager.resolve(pending_session_id, msg.text)
+        logger.info(
+            "审批恢复 [%s]: 用户输入=%r, resolve=%s",
+            pending_session_id, msg.text, result,
+        )
         if result is None:
             # 语义不明，提示用「是/否」
             question = self.confirm_manager.get_question(msg.session_id)
